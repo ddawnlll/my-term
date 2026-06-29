@@ -1,0 +1,2 @@
+[console_scripts]
+my-term = my_term_tui.__main__:main

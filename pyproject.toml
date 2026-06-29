@@ -1,0 +1,18 @@
+[project]
+name = "my-term"
+version = "2.0.0"
+description = "🌸 Kitty + Starship + Oh My Zsh + Waifu Greeting — Catppuccin Cozy Anime Rice"
+requires-python = ">=3.10"
+dependencies = [
+    "textual>=8.0",
+]
+
+[project.scripts]
+my-term = "my_term_tui.__main__:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

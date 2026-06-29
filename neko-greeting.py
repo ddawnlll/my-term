@@ -77,25 +77,64 @@ def in_kitty():
             or os.environ.get("KITTY_PID"))
 
 def display_image(path):
-    """Display via kitten icat with safe flags (no /dev/tty)."""
+    """Display image after the greeting, then advance cursor past it."""
     try:
         if not in_kitty():
             return False
         kitten = shutil.which("kitten") or os.path.expanduser("~/.local/kitty/bin/kitten")
         if not os.path.exists(kitten):
             return False
+
         cols, lines = shutil.get_terminal_size()
+        cell_w, cell_h = 9, 20
+
+        # Pre-resize to max 35% terminal height
+        from PIL import Image as PILImage
+        with PILImage.open(path) as img:
+            img_w, img_h = img.size
+        max_w = cols * cell_w
+        max_h = int(lines * 0.35 * cell_h)
+        scale = min(max_w / img_w, max_h / img_h, 1.0)
+
+        temp = None
+        if scale < 1.0:
+            import tempfile
+            nw, nh = int(img_w * scale), int(img_h * scale)
+            temp = Path(tempfile.mktemp(suffix=".png"))
+            with PILImage.open(path) as img:
+                img.resize((nw, nh), PILImage.LANCZOS).save(temp)
+            pcol = max(10, min(cols, int(nw / cell_w)))
+            prow = max(4, min(int(lines * 0.35), int(nh / cell_h)))
+            display_path = temp
+        else:
+            pcol = max(10, min(cols, int(img_w / cell_w)))
+            prow = max(4, min(int(lines * 0.35), int(img_h / cell_h)))
+            display_path = path
+
+        # All three are required for icat to work without TTY access:
+        # --use-window-size, --place, --transfer-mode
+        px_w = cols * cell_w
+        px_h = lines * cell_h
+
         proc = subprocess.Popen(
             [kitten, "icat",
              "--transfer-mode=file", "--stdin=no",
-             "--use-window-size", f"{cols},{lines},{cols*14},{lines*28}",
-             "--align", "center", str(path)],
+             "--use-window-size", f"{cols},{lines},{px_w},{px_h}",
+             "--place", f"{pcol}x{prow}@0x3",
+             "--align", "center",
+             str(display_path)],
             stdin=subprocess.DEVNULL,
             stdout=sys.stdout, stderr=sys.stderr,
             start_new_session=True,
         )
         proc.wait()
-        return proc.returncode == 0
+        if temp and temp.exists():
+            temp.unlink(missing_ok=True)
+
+        # Advance cursor past the image area
+        print(f"\033[{prow + 1}B", end="")
+        sys.stdout.flush()
+        return True
     except Exception:
         return False
 
@@ -121,6 +160,12 @@ def main():
             refill()
             return
 
+        # ── 1. Greeting text at the top ──
+        msg = greeting()
+        w = shutil.get_terminal_size().columns
+        print(f"\n{msg:^{w}}\n")
+
+        # ── 2. Image at cursor position; icat auto-advances cursor ──
         images = get_cached()
         if not images:
             errlog("cache empty — spawning refill")
@@ -141,10 +186,6 @@ def main():
                 subprocess.Popen([sys.executable, __file__, "--refill"],
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                  start_new_session=True)
-
-        msg = greeting()
-        w = shutil.get_terminal_size().columns
-        print(f"\n{msg:^{w}}\n")
     except Exception as e:
         errlog(f"crash: {e}")
         traceback.print_exc(file=sys.stderr)

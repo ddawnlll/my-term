@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: my-term
+Version: 2.0.0
+Summary: 🌸 Kitty + Starship + Oh My Zsh + Waifu Greeting — Catppuccin Cozy Anime Rice
+Requires-Python: >=3.10
+Requires-Dist: textual>=8.0
